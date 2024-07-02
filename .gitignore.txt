@@ -1,3 +1,0 @@
-PES_secrets*
-.ipynb_*
-__pycache__*
