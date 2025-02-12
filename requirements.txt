@@ -1,0 +1,7 @@
+pytest
+pylint
+pytest-cov
+black
+astropy
+xmltodict
+ephem
