@@ -7,3 +7,11 @@ xmltodict
 ephem
 photutils
 matplotlib
+holoviews
+panel
+plotly
+numpy
+jupyter_bokeh
+ipykernel
+nbconvert
+astroquery

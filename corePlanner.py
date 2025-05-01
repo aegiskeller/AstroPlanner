@@ -5,64 +5,64 @@ import datetime
 import PES_secrets
 import pandas as pd
 from zoneinfo import ZoneInfo
+import math
 
 def check_auth():
     entry = requests.get("https://targettool.aavso.org/TargetTool/api/v1/telescope",auth=(PES_secrets.apikey,"api_token"), timeout=5)
+    # check if the requests raises an exception
+    if entry.status_code != 200:
+        print(f"Error: {entry.status_code}")
+        print("Please check your API key and try again.")
+        return None
+    # check if the response is empty
+    if entry.json() == {}:
+        print("Error: Site is not defined for this API key")
+        print("Please check your configuration and try again.")
+        return None
     return(entry.json())
 
-def get_horizon(datestr):
+def get_sun_rise_set(datestr):
     # lets now consider the night in question
     # Make an observer
-    wombat = ephem.Observer()
+    planobs = ephem.Observer()
 
     # Set the date and time 
-    wombat.date = datestr
+    planobs.date = datestr
 
     # Location 
-    wombat.lon = str(148.12899)
-    wombat.lat = str(-35.282)
+    planobs.lon = str(PES_secrets.obslon)
+    planobs.lat = str(PES_secrets.obslat)
 
     # Elevation 
-    wombat.elev = 500
-
+    planobs.elevation = PES_secrets.obsalt
     # To get U.S. Naval Astronomical Almanac values, use these settings
-    wombat.pressure = 0
-    wombat.horizon = '-0:34'
+    planobs.pressure = 0
+    planobs.horizon = '-0:34'
 
     # Calculate sunrise, solar noon, and sunset
-    sunrise = wombat.next_rising(ephem.Sun(), use_center=True)
-    sunset = wombat.next_setting(ephem.Sun(), use_center=True)
+    sunrise = planobs.next_rising(ephem.Sun(), use_center=True)
+    sunset = planobs.next_setting(ephem.Sun(), use_center=True)
 
     # Relocate the horizon to get twilight times
-    wombat.horizon = '-12'  # -6=civil twilight, -12=nautical, -18=astronomical
-    beg_twilight = wombat.next_rising(ephem.Sun(), use_center=True)
-    end_twilight = wombat.next_setting(ephem.Sun(), use_center=True)
+    planobs.horizon = str(PES_secrets.obshorizon)  # -6=civil twilight, -12=nautical, -18=astronomical
+    beg_twilight = planobs.next_rising(ephem.Sun(), use_center=True)
+    end_twilight = planobs.next_setting(ephem.Sun(), use_center=True)
     # check the times are not the same
     if beg_twilight == end_twilight:
         print("Error: The times for twilight are the same, check the date")
         return None
-
-    #print(f"Sunset: {sunset}")
-    #print(f"Sunrise: {sunrise}")
-
     zone = ZoneInfo('GMT')
     return(ephem.to_timezone(sunset, zone).timestamp(), 
            ephem.to_timezone(sunrise, zone).timestamp())
 
 def get_targets():
-    obs_sections = ['eb'] #ac,ep,cv,eb,spp,lpv,yso,het,misc,all.
-    minalt = 30 # degrees above horizon
+    obs_sections = PES_secrets.obs_sections
+    minalt = PES_secrets.minalt # degrees above horizon
     entry = requests.get("https://targettool.aavso.org/TargetTool/api/v1/targets",\
                      auth=(PES_secrets.apikey,"api_token"),params={'observable':['True'],'obs_section':[obs_sections], 'targetaltitude':[str(minalt)], 'orderby':['ra']}, timeout=5)
-    return(entry.json())
-
-def parse_targets():
-    # the json looks like this
-    # {'star_name': 'V1723 Sco', 'ra': 261.57529, 'dec': -38.16008, 'constellation': 'Sco', 'var_type': 'NA', 'min_mag': None, 'min_mag_band': 'V', 'max_mag': 6.8, 'max_mag_band': 'V', 'period': None, 'obs_cadence': 3.0, 'obs_mode': 'All', 'obs_section': ['Alerts / Campaigns', 'Cataclysmic Variables', 'Eclipsing Variables', 'Short Period Pulsators', 'Long Period Variables', 'Young Stellar Objects'], 'filter': 'R', 'other_info': 'N Sco 2024 = PNV J17261813-3809354\r\n[[Alert Notice 849 https://www.aavso.org/aavso-alert-notice-849]]', 'priority': True, 'last_data_point': 1738828996, 'observability_times': [['TARGET_RISES', 1745924128]], 'solar_conjunction': False}
-
-    targets = get_targets()
-    # convert the dict to a pandas dataframe
-    df = pd.DataFrame.from_dict(targets['targets'])   
+    
+    temp_json = entry.json()
+    df = pd.DataFrame.from_dict(temp_json['targets'])
     return df
 
 def parse_ephemeris(ref):
@@ -79,7 +79,7 @@ def parse_ephemeris(ref):
     try:
         entry = requests.get(url, timeout=5)
     except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
+        print(f"Info: {e}")
         return None
     # parse the ephemeris to a pandas dataframe
     #<td align="left">2460515.239</td><td align="left">23 Jul 2024 17:44</td></td></tr>
@@ -100,18 +100,75 @@ def parse_ephemeris(ref):
             ephemeris.append(dt)
     return ephemeris
 
-def event_tonight(ephemeris):
-    # get the current time
-    now = datetime.datetime.now()
-    # get the current time in UTC
-    now = now.replace(tzinfo=ZoneInfo('UTC'))
-    # check there is an element in the ephemeris list that occurs between sunset and sunrise
+def event_tonight(targetdf):
+    # for each target check if there is an event tonight
+    # if there is an event then we add a column to the targetdf
+    # with the event time
+    for index, row in targetdf.iterrows():
+        # check if the ephemerise is empty
+        if row['ephemeris'] is None:
+            # there is no event tonight
+            # add a column to the targetdf with the value None
+            targetdf.at[index, 'event'] = None
+            continue
+        # if the ephemeris is not empty then we check if there is an event tonight
+        # get the ephemeris
+        ephemeris = row['ephemeris']
+        # create a new column in the targetdf
+        targetdf.at[index, 'event'] = None
+        # does the ephemeris contain a datetime that is between the sunset and sunrise
+        # get the sunset and sunrise times
+        sunset, sunrise = get_sun_rise_set(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        # check if the ephemeris is between the sunset and sunrise
+        for event in ephemeris:
+            # check if the event is between the sunset and sunrise
+            if event.timestamp() > sunset and event.timestamp() < sunrise:
+                # add the event to the targetdf
+                targetdf.at[index, 'event'] = event
+                # print the event
+                # print(f"Event: {event} for {row['star_name']}")
+                break
+    return targetdf
+
+def get_target_airmass(target):
+    """
+    determine the airmass for a target over the course of the night
+    input is a row of the target dataframe as recieved from the get_targets function
+    """
+    ra = target['ra']
+    dec = target['dec']
     # get the sunset and sunrise times
-    sunset, sunrise = get_horizon(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    # check if the ephemeris is between sunset and sunrise
-    #print (ephemeris)
-    for ep in ephemeris:
-        # check if the ephemeris is between sunset and sunrise
-        if ep.timestamp() > sunset and ep.timestamp() < sunrise:
-            return ep
-    return None
+    sunset, sunrise = get_sun_rise_set(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    # create a list of times from sunset to sunrise - sampled every 1h
+    times = []
+    for i in range(0, 24):
+        # create a time object
+        time = datetime.datetime.fromtimestamp(sunset) + datetime.timedelta(hours=i)
+        # check if the time is before sunrise
+        if time.timestamp() < sunrise:
+            times.append(time.timestamp())
+    airmass = []
+    for time in times:
+        # create an observer
+        planobs = ephem.Observer()
+        # set the date and time 
+        planobs.date = datetime.datetime.fromtimestamp(time)
+        # Location 
+        planobs.lon = str(PES_secrets.obslon)
+        planobs.lat = str(PES_secrets.obslat)
+        # Elevation 
+        planobs.elevation = PES_secrets.obsalt
+        # To get U.S. Naval Astronomical Almanac values, use these settings
+        planobs.pressure = 0
+        planobs.horizon = '-0:34'
+        # create a star object
+        star = ephem.FixedBody()
+        star._epoch = ephem.J2000
+        star._ra = ra/180.0*ephem.pi
+        star._dec = dec/180.0*ephem.pi
+        star.compute(planobs)
+        # calculate the airmass
+        airmass.append(1/math.cos(math.radians(90.0 - star.alt*180.0/ephem.pi)))
+        #print(planobs.date, ra, dec)
+    # return the airmass
+    return times, airmass
