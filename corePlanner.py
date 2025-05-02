@@ -172,3 +172,26 @@ def get_target_airmass(target):
         #print(planobs.date, ra, dec)
     # return the airmass
     return times, airmass
+
+def determine_moon_phase(date):
+    """
+    determine the moon phase for a given date
+    input is a datetime object
+    """
+    # get the moon phase
+    moon = ephem.Moon()
+    # create an observer
+    planobs = ephem.Observer()
+    # set the date and time 
+    planobs.date = date
+    # Location 
+    planobs.lon = str(PES_secrets.obslon)
+    planobs.lat = str(PES_secrets.obslat)
+    # Elevation 
+    planobs.elevation = PES_secrets.obsalt
+    # To get U.S. Naval Astronomical Almanac values, use these settings
+    planobs.pressure = 0
+    planobs.horizon = '-0:34'
+    # compute the moon phase
+    moon.compute(planobs)
+    return moon.phase
