@@ -63,6 +63,8 @@ def get_targets():
     
     temp_json = entry.json()
     df = pd.DataFrame.from_dict(temp_json['targets'])
+    # convert last_data_point from a seconds timestamp  to datetime object and format as YYYY-MM-DD
+    df['last_data_point'] = pd.to_datetime(df['last_data_point'], unit='s').dt.strftime('%Y-%m-%d')
     return df
 
 def parse_ephemeris(ref):
@@ -126,7 +128,13 @@ def event_tonight(targetdf):
                 # add the event to the targetdf
                 targetdf.at[index, 'event'] = event
                 # print the event
-                # print(f"Event: {event} for {row['star_name']}")
+                print(f"Event: {event} for {row['star_name']}")
+                break
+            # also locate the event that occurs next
+            # check if the event is after the sunrise
+            if event.timestamp() > sunrise:
+                # add the event to the targetdf - add the local time pof the event
+                targetdf.at[index, 'next_event'] = event.timestamp().tz_convert(PES_secrets.timezone)    
                 break
     return targetdf
 

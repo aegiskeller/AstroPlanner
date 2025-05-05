@@ -1,2 +1,2 @@
 star_name,ra,dec,constellation,var_type,min_mag,min_mag_band,max_mag,max_mag_band,period,obs_cadence,obs_mode,obs_section,filter,other_info,priority,last_data_point,observability_times,solar_conjunction
-BP Hyi,31.94021,-73.49608,Hyi,EA,16.2,p,15.3,p,,3.0,All,['Eclipsing Variables'],All,,,1571427768.0,"[['TARGET_SETS', 1746088088], ['TARGET_RISES', 1746124666]]",False
+BP Hyi,31.94021,-73.49608,Hyi,EA,16.2,p,15.3,p,,3.0,All,['Eclipsing Variables'],All,,,1571427768.0,"[['TARGET_SETS', 1746432744], ['TARGET_RISES', 1746469322]]",False
