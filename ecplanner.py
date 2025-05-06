@@ -18,7 +18,7 @@ if __name__ == "__main__":
     datestr = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     targetdf = get_targets()
     # while testing cut the list down to 10
-    #targetdf = targetdf.head(10)
+    targetdf = targetdf.head(10)
     # get the ephemeris for each target in the targetdf
     targetdf['ephemeris'] = None
     for index, row in targetdf.iterrows():

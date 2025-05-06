@@ -65,6 +65,14 @@ def get_targets():
     df = pd.DataFrame.from_dict(temp_json['targets'])
     # convert last_data_point from a seconds timestamp  to datetime object and format as YYYY-MM-DD
     df['last_data_point'] = pd.to_datetime(df['last_data_point'], unit='s').dt.strftime('%Y-%m-%d')
+    # rename var_type ro type
+    df.rename(columns={'var_type': 'type'}, inplace=True)
+    # rename min_mag to min
+    df.rename(columns={'min_mag': 'min'}, inplace=True)
+    # rename max_mag to max
+    df.rename(columns={'max_mag': 'max'}, inplace=True)
+    # testing take the first 20 rows
+    #df = df.head(20)
     return df
 
 def parse_ephemeris(ref):
@@ -107,21 +115,21 @@ def event_tonight(targetdf):
     # if there is an event then we add a column to the targetdf
     # with the event time
     for index, row in targetdf.iterrows():
+        # create new columns in the targetdf
+        targetdf.at[index, 'event'] = None
+        targetdf.at[index, 'next_event'] = None
         # check if the ephemerise is empty
         if row['ephemeris'] is None:
-            # there is no event tonight
-            # add a column to the targetdf with the value None
-            targetdf.at[index, 'event'] = None
+            # there is no event tonight - skip this target
             continue
         # if the ephemeris is not empty then we check if there is an event tonight
         # get the ephemeris
         ephemeris = row['ephemeris']
-        # create a new column in the targetdf
-        targetdf.at[index, 'event'] = None
         # does the ephemeris contain a datetime that is between the sunset and sunrise
         # get the sunset and sunrise times
         sunset, sunrise = get_sun_rise_set(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         # check if the ephemeris is between the sunset and sunrise
+        temp_event = None
         for event in ephemeris:
             # check if the event is between the sunset and sunrise
             if event.timestamp() > sunset and event.timestamp() < sunrise:
@@ -129,13 +137,29 @@ def event_tonight(targetdf):
                 targetdf.at[index, 'event'] = event
                 # print the event
                 print(f"Event: {event} for {row['star_name']}")
-                break
-            # also locate the event that occurs next
-            # check if the event is after the sunrise
-            if event.timestamp() > sunrise:
-                # add the event to the targetdf - add the local time pof the event
-                targetdf.at[index, 'next_event'] = event.timestamp().tz_convert(PES_secrets.timezone)    
-                break
+                temp_event = event
+        # also find the next event after the temp_event
+        # check if the temp_event is not None
+        if temp_event is not None:
+            # check if the event is between the sunset and sunrise
+            for event in ephemeris:
+                # check if the event is after the temp_event
+                if event.timestamp() > temp_event.timestamp():
+                    # add the event to the targetdf
+                    targetdf.at[index, 'next_event'] = event
+                    # print the event
+                    print(f"Next Event: {event} for {row['star_name']}")
+                    break
+        # if the temp_event is None there can be a next event
+        if temp_event is None:
+            for event in ephemeris:
+                # check if the event is after the sunset
+                if event.timestamp() > sunrise:
+                    # add the event to the targetdf
+                    targetdf.at[index, 'next_event'] = event
+                    # print the event
+                    print(f"Next Event: {event} for {row['star_name']}")
+                    break
     return targetdf
 
 def get_target_airmass(target):
