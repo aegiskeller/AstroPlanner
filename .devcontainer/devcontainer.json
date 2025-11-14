@@ -1,0 +1,14 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.makefile-tools",
+				"ms-python.vscode-pylance",
+				"ms-python.python",
+				"ms-toolsai.jupyter",
+				"GitHub.copilot"
+			]
+		}
+	}
+}

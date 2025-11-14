@@ -1,0 +1,17 @@
+pytest
+pylint
+pytest-cov
+black
+astropy
+xmltodict
+ephem
+photutils
+matplotlib
+holoviews
+panel
+plotly
+numpy
+jupyter_bokeh
+ipykernel
+nbconvert
+astroquery

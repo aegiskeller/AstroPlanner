@@ -2,3 +2,5 @@
 PES_secrets.py
 __pycache__/PES_secrets.cpython-38.pyc
 /.ipynb_checkpoints
+.*
+*.pyc
